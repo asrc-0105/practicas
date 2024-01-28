@@ -20,3 +20,38 @@ los fundamentos de la sintaxis de python son todas aquellas metricas que definde
 
 la indentacion son los espacios en blanco que se escriben para establecer un bloque de codigo 
 gracias a la indentacion el bloque de codigo se ve mas estructurado y ordenado 
+
+
+### comentarios y cadenas de documentacion: 
+
+estos mecanismos ayudan a poder entener de una mejor manera los grupos de codigo y el objetivo de caa uno gracias a que python ignora estos mensajes para poer activarlos se necesita poner un # para que python sepa que no tiene que ser agregado al codigo 
+
+
+### variables y tipos de datos 
+
+cuando se habla de variables en python es el lugar donde se almacenan los datos, lo interesante de python es que para establecer una variable no es necesario poner el tipo de dato que se esta manejando ejm 
+
+```python
+#declarando variables:
+
+num_uno: 50   #int 
+num_dos : 10.2  #float 
+name: sebastian  #str
+correcto: false  #bool
+
+#tipado dinamico
+# es cuando reasignas un dato a la variable ejm:
+num_uno: 3000
+num_uno:3000.5
+```
+### usando las varibles 
+```python
+
+saludo: hola, buen dia
+nombre: carlos
+print(saludo + nombre)
+#resultado : hola, buen dia carlos
+
+
+
+
