@@ -1,0 +1,662 @@
+import socket
+import serial
+import requests
+import json
+import paho.mqtt.client as mqtt
+
+# Configuración del puerto serial
+SERIAL_PORT = '/dev/ttyUSB0'  # Cambiar según el puerto utilizado
+BAUD_RATE = 9600
+
+# Configuración de la conexión MQTT
+MQTT_BROKER = 'broker.hivemq.com'
+MQTT_PORT = 1883
+MQTT_TOPIC = 'cableguardian/data'
+
+# Configuración del servidor TCP
+SERVER_HOST = '0.0.0.0'
+SERVER_PORT = 5000
+
+# Inicialización del puerto serial
+ser = serial.Serial(SERIAL_PORT, BAUD_RATE)
+
+# Inicialización del cliente MQTT
+mqtt_client = mqtt.Client()
+
+def on_message(client, userdata, message):
+    print(f"Mensaje recibido: {message.payload.decode()}")
+
+def setup_mqtt():
+    mqtt_client.on_message = on_message
+    mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    mqtt_client.subscribe(MQTT_TOPIC)
+    mqtt_client.loop_start()
+
+def handle_client_connection(client_socket):
+    try:
+        while True:
+            request = client_socket.recv(1024)
+            if not request:
+                break
+            
+            # Procesar solicitud y enviar respuesta
+            data = request.decode('utf-8')
+            if data.startswith('SERIAL:'):
+                ser.write(data[len('SERIAL:'):].encode())
+                response = "Datos enviados al dispositivo serial"
+            elif data.startswith('MQTT:'):
+                mqtt_client.publish(MQTT_TOPIC, data[len('MQTT:'):])
+                response = "Datos enviados al broker MQTT"
+            elif data.startswith('HTTP:'):
+                url, payload = data[len('HTTP:'):].split('|', 1)
+                response = requests.post(url, data=json.loads(payload)).text
+            else:
+                response = "Comando no reconocido"
+
+            client_socket.send(response.encode())
+    finally:
+        client_socket.close()
+
+def start_server():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((SERVER_HOST, SERVER_PORT))
+    server.listen(5)
+    print(f"Servidor escuchando en {SERVER_HOST}:{SERVER_PORT}")
+
+    while True:
+        client_sock, addr = server.accept()
+        print(f"Conexión aceptada de {addr}")
+        handle_client_connection(client_sock)
+
+if __name__ == "__main__":
+    setup_mqtt()
+    start_server()
+
+
+
+import serial
+
+# Configuración del puerto serial
+SERIAL_PORT = '/dev/ttyUSB0'  # Cambiar según el puerto utilizado
+BAUD_RATE = 9600
+
+# Inicialización del puerto serial
+def initialize_serial():
+    try:
+        ser = serial.Serial(SERIAL_PORT, BAUD_RATE)
+        print(f"Puerto serial {SERIAL_PORT} inicializado a {BAUD_RATE} baudios.")
+        return ser
+    except Exception as e:
+        print(f"Error al inicializar el puerto serial: {e}")
+        return None
+
+# Enviar datos vía serial
+def send_data(serial_port, data):
+    try:
+        if serial_port and serial_port.is_open:
+            serial_port.write(data.encode())
+            print(f"Datos enviados: {data}")
+        else:
+            print("El puerto serial no está abierto.")
+    except Exception as e:
+        print(f"Error al enviar datos: {e}")
+
+# Recibir datos vía serial
+def receive_data(serial_port):
+    try:
+        if serial_port and serial_port.is_open:
+            if serial_port.in_waiting > 0:
+                data = serial_port.readline().decode('utf-8').strip()
+                print(f"Datos recibidos: {data}")
+                return data
+            else:
+                print("No hay datos disponibles.")
+                return None
+        else:
+            print("El puerto serial no está abierto.")
+            return None
+    except Exception as e:
+        print(f"Error al recibir datos: {e}")
+        return None
+
+if __name__ == "__main__":
+    ser = initialize_serial()
+
+    if ser:
+        # Ejemplo de envío de datos
+        send_data(ser, "Hola desde el puerto serial")
+
+        # Ejemplo de recepción de datos
+        received_data = receive_data(ser)
+
+        # Cierre del puerto serial
+        ser.close()
+        print("Puerto serial cerrado.")
+
+
+
+
+import socket
+
+# Configuración del servidor TCP
+SERVER_HOST = '0.0.0.0'  # Escuchar en todas las interfaces disponibles
+SERVER_PORT = 5000
+BUFFER_SIZE = 1024
+
+# Crear Servidor TCP
+def create_server():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind((SERVER_HOST, SERVER_PORT))
+    server_socket.listen(5)
+    print(f"Servidor TCP escuchando en {SERVER_HOST}:{SERVER_PORT}")
+    return server_socket
+
+# Aceptar Conexiones Entrantes
+def accept_connections(server_socket):
+    client_socket, client_address = server_socket.accept()
+    print(f"Conexión aceptada de {client_address}")
+    return client_socket
+
+# Enviar Datos vía TCP
+def send_data(client_socket, data):
+    try:
+        client_socket.sendall(data.encode())
+        print(f"Datos enviados: {data}")
+    except Exception as e:
+        print(f"Error al enviar datos: {e}")
+
+# Recibir Datos vía TCP
+def receive_data(client_socket):
+    try:
+        data = client_socket.recv(BUFFER_SIZE).decode('utf-8').strip()
+        if data:
+            print(f"Datos recibidos: {data}")
+            return data
+        else:
+            print("No se recibieron datos.")
+            return None
+    except Exception as e:
+        print(f"Error al recibir datos: {e}")
+        return None
+
+if __name__ == "__main__":
+    server_socket = create_server()
+
+    try:
+        while True:
+            client_socket = accept_connections(server_socket)
+
+            try:
+                # Ejemplo de recepción de datos
+                received_data = receive_data(client_socket)
+                
+                # Ejemplo de envío de datos
+                if received_data:
+                    send_data(client_socket, "Datos recibidos correctamente")
+                
+            finally:
+                # Cierre de la conexión con el cliente
+                client_socket.close()
+                print("Conexión con el cliente cerrada.")
+
+    except KeyboardInterrupt:
+        print("Servidor detenido por el usuario.")
+
+    finally:
+        server_socket.close()
+        print("Servidor TCP cerrado.")
+
+
+
+import requests
+import json
+
+# Configuración de la URL base (cambia esta URL según tus necesidades)
+BASE_URL = 'http://example.com/api'  # Cambia esta URL según tu servidor
+
+# Enviar Solicitud HTTP POST
+def send_post_request(endpoint, data):
+    url = f"{BASE_URL}/{endpoint}"
+    try:
+        response = requests.post(url, json=data)
+        response.raise_for_status()  # Lanza una excepción para respuestas de error
+        print(f"Respuesta HTTP POST: {response.status_code}")
+        print(f"Contenido: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error en la solicitud HTTP POST: {e}")
+
+# Enviar Solicitud HTTP GET
+def send_get_request(endpoint):
+    url = f"{BASE_URL}/{endpoint}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Lanza una excepción para respuestas de error
+        print(f"Respuesta HTTP GET: {response.status_code}")
+        print(f"Contenido: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error en la solicitud HTTP GET: {e}")
+
+if __name__ == "__main__":
+    # Ejemplo de envío de solicitud HTTP POST
+    post_data = {
+        'key1': 'value1',
+        'key2': 'value2'
+    }
+    send_post_request('post-endpoint', post_data)
+
+    # Ejemplo de envío de solicitud HTTP GET
+    send_get_request('get-endpoint')
+
+
+
+import paho.mqtt.client as mqtt
+
+# Configuración del broker MQTT
+MQTT_BROKER = 'broker.hivemq.com'
+MQTT_PORT = 1883
+MQTT_TOPIC = 'cableguardian/test'  # Cambiar el tópico según tus necesidades
+
+# Configurar Cliente MQTT
+def on_connect(client, userdata, flags, rc):
+    print(f"Conectado con código de resultado {rc}")
+    # Suscribirse al tópico al conectar
+    client.subscribe(MQTT_TOPIC)
+
+def on_message(client, userdata, message):
+    print(f"Mensaje recibido en el tópico {message.topic}: {message.payload.decode()}")
+
+def setup_mqtt_client():
+    client = mqtt.Client()
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(MQTT_BROKER, MQTT_PORT, 60)
+    client.loop_start()  # Comienza el bucle de procesamiento de mensajes
+    return client
+
+# Publicar Mensaje en un Tópico MQTT
+def publish_message(client, topic, message):
+    try:
+        client.publish(topic, message)
+        print(f"Mensaje publicado en el tópico {topic}: {message}")
+    except Exception as e:
+        print(f"Error al publicar mensaje: {e}")
+
+if __name__ == "__main__":
+    mqtt_client = setup_mqtt_client()
+
+    try:
+        # Ejemplo de publicación de un mensaje
+        publish_message(mqtt_client, MQTT_TOPIC, "Hola desde MQTT")
+
+        # Mantener el script en ejecución para recibir mensajes
+        input("Presiona Enter para salir...")
+
+    finally:
+        # Cierre del cliente MQTT
+        mqtt_client.loop_stop()  # Detiene el bucle de procesamiento de mensajes
+        mqtt_client.disconnect()
+        print("Cliente MQTT desconectado.")
+
+
+
+import asyncio
+import websockets
+
+# Configuración del servidor WebSocket
+SERVER_HOST = 'localhost'
+SERVER_PORT = 8765
+
+async def handler(websocket, path):
+    print(f"Cliente conectado: {path}")
+    try:
+        async for message in websocket:
+            print(f"Mensaje recibido: {message}")
+            response = f"Echo: {message}"
+            await websocket.send(response)
+            print(f"Respuesta enviada: {response}")
+    except Exception as e:
+        print(f"Error en la conexión WebSocket: {e}")
+
+async def start_server():
+    async with websockets.serve(handler, SERVER_HOST, SERVER_PORT):
+        print(f"Servidor WebSocket escuchando en ws://{SERVER_HOST}:{SERVER_PORT}")
+        await asyncio.Future()  # Mantiene el servidor en ejecución
+
+if __name__ == "__main__":
+    asyncio.run(start_server())
+
+
+
+
+import asyncio
+import websockets
+
+# Configuración del cliente WebSocket
+SERVER_URI = 'ws://localhost:8765'
+
+async def connect_and_communicate():
+    async with websockets.connect(SERVER_URI) as websocket:
+        print(f"Conectado al servidor WebSocket en {SERVER_URI}")
+        
+        # Enviar un mensaje al servidor
+        message = "Hola desde el cliente WebSocket"
+        await websocket.send(message)
+        print(f"Mensaje enviado: {message}")
+        
+        # Recibir una respuesta del servidor
+        response = await websocket.recv()
+        print(f"Respuesta recibida: {response}")
+
+if __name__ == "__main__":
+    asyncio.run(connect_and_communicate())
+
+
+
+import bluetooth
+
+# Configuración del servidor Bluetooth
+SERVER_NAME = "BluetoothServer"
+SERVER_UUID = "00001101-0000-1000-8000-00805F9B34FB"  # UUID de RFCOMM
+
+def start_bluetooth_server():
+    # Crear un socket Bluetooth RFCOMM
+    server_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    
+    # Enlazar el socket al puerto 1
+    server_socket.bind(("", 1))
+    server_socket.listen(1)
+    
+    print(f"Esperando conexiones en {SERVER_NAME}...")
+
+    # Anunciar el servicio
+    bluetooth.advertise_service(server_socket, SERVER_NAME, service_id=SERVER_UUID)
+
+    # Aceptar conexión
+    client_socket, client_info = server_socket.accept()
+    print(f"Conexión aceptada de {client_info}")
+
+    try:
+        while True:
+            # Recibir datos del cliente
+            data = client_socket.recv(1024)
+            if not data:
+                break
+            
+            print(f"Datos recibidos: {data.decode('utf-8')}")
+            
+            # Enviar respuesta al cliente
+            response = "Datos recibidos correctamente"
+            client_socket.send(response)
+            print(f"Respuesta enviada: {response}")
+
+    except bluetooth.BluetoothError as e:
+        print(f"Error en la comunicación Bluetooth: {e}")
+
+    finally:
+        client_socket.close()
+        server_socket.close()
+        print("Conexión cerrada.")
+
+if __name__ == "__main__":
+    start_bluetooth_server()
+
+
+
+import bluetooth
+
+# Configuración del cliente Bluetooth
+SERVER_ADDRESS = '00:11:22:33:44:55'  # Reemplaza con la dirección MAC del servidor Bluetooth
+SERVER_PORT = 1
+
+def connect_and_communicate():
+    # Crear un socket Bluetooth RFCOMM
+    client_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    
+    try:
+        # Conectar al servidor
+        client_socket.connect((SERVER_ADDRESS, SERVER_PORT))
+        print(f"Conectado al servidor Bluetooth en {SERVER_ADDRESS}:{SERVER_PORT}")
+
+        # Enviar un mensaje al servidor
+        message = "Hola desde el cliente Bluetooth"
+        client_socket.send(message)
+        print(f"Mensaje enviado: {message}")
+
+        # Recibir una respuesta del servidor
+        response = client_socket.recv(1024)
+        print(f"Respuesta recibida: {response.decode('utf-8')}")
+
+    except bluetooth.BluetoothError as e:
+        print(f"Error en la comunicación Bluetooth: {e}")
+
+    finally:
+        client_socket.close()
+        print("Conexión cerrada.")
+
+if __name__ == "__main__":
+    connect_and_communicate()
+
+
+
+import can
+
+# Configuración del bus CAN
+CAN_INTERFACE = 'can0'  # Nombre del interfaz CAN, puede variar según el hardware
+CAN_BAUDRATE = 500000    # Velocidad en baudios
+
+def initialize_can_bus():
+    # Inicializar el bus CAN
+    bus = can.interface.Bus(interface=CAN_INTERFACE, bitrate=CAN_BAUDRATE)
+    print(f"Bus CAN inicializado en {CAN_INTERFACE} a {CAN_BAUDRATE} baudios.")
+    return bus
+
+
+
+
+def send_can_message(bus, message_id, data):
+    # Crear un mensaje CAN
+    message = can.Message(arbitration_id=message_id, data=data, is_extended_id=False)
+    
+    try:
+        bus.send(message)
+        print(f"Mensaje CAN enviado: ID={message_id}, Data={data}")
+    except can.CanError as e:
+        print(f"Error al enviar mensaje CAN: {e}")
+
+
+
+
+def receive_can_message(bus):
+    try:
+        # Recibir un mensaje CAN
+        message = bus.recv(timeout=10)  # Timeout en segundos
+        if message:
+            print(f"Mensaje CAN recibido: ID={message.arbitration_id}, Data={message.data}")
+        else:
+            print("No se recibió ningún mensaje CAN en el tiempo especificado.")
+    except can.CanError as e:
+        print(f"Error al recibir mensaje CAN: {e}")
+
+
+
+
+if __name__ == "__main__":
+    bus = initialize_can_bus()
+
+    # Ejemplo de envío de mensaje CAN
+    send_can_message(bus, 0x123, [0xDE, 0xAD, 0xBE, 0xEF])
+
+    # Ejemplo de recepción de mensaje CAN
+    receive_can_message(bus)
+
+
+
+from smbus2 import SMBus
+
+# Configuración del bus I2C
+I2C_BUS = 1        # Número del bus I2C, generalmente 1 en Raspberry Pi
+DEVICE_ADDRESS = 0x40  # Dirección del dispositivo I2C (cambia según tu dispositivo)
+
+def initialize_i2c():
+    # Inicializar el bus I2C
+    bus = SMBus(I2C_BUS)
+    print(f"Bus I2C inicializado en el bus {I2C_BUS}.")
+    return bus
+
+
+def write_i2c_data(bus, address, register, data):
+    try:
+        # Enviar datos a un registro del dispositivo I2C
+        bus.write_byte_data(address, register, data)
+        print(f"Datos enviados al dispositivo {address}, Registro {register}: {data}")
+    except Exception as e:
+        print(f"Error al enviar datos vía I2C: {e}")
+
+
+
+def read_i2c_data(bus, address, register):
+    try:
+        # Leer datos de un registro del dispositivo I2C
+        data = bus.read_byte_data(address, register)
+        print(f"Datos recibidos del dispositivo {address}, Registro {register}: {data}")
+        return data
+    except Exception as e:
+        print(f"Error al recibir datos vía I2C: {e}")
+        return None
+
+
+
+if __name__ == "__main__":
+    bus = initialize_i2c()
+
+    # Ejemplo de envío de datos vía I2C
+    write_i2c_data(bus, DEVICE_ADDRESS, 0x01, 0xFF)  # Enviar 0xFF al registro 0x01
+
+    # Ejemplo de recepción de datos vía I2C
+    data = read_i2c_data(bus, DEVICE_ADDRESS, 0x01)  # Leer del registro 0x01
+
+
+
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.backends import default_backend
+import os
+
+# Configuración del cifrado AES
+KEY_SIZE = 32  # Tamaño de la clave en bytes (256 bits)
+BLOCK_SIZE = 16  # Tamaño del bloque en bytes (AES utiliza bloques de 16 bytes)
+
+def generate_aes_key():
+    return os.urandom(KEY_SIZE)
+
+def encrypt_aes(key, plaintext):
+    # Generar un IV (vector de inicialización) aleatorio
+    iv = os.urandom(BLOCK_SIZE)
+    
+    # Crear un cifrador AES
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    encryptor = cipher.encryptor()
+    
+    # Añadir padding al texto plano
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded_plaintext = padder.update(plaintext.encode()) + padder.finalize()
+    
+    # Cifrar el texto plano
+    ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
+    
+    return iv + ciphertext
+
+def decrypt_aes(key, ciphertext):
+    # Extraer IV del mensaje cifrado
+    iv = ciphertext[:BLOCK_SIZE]
+    ciphertext = ciphertext[BLOCK_SIZE:]
+    
+    # Crear un cifrador AES
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    decryptor = cipher.decryptor()
+    
+    # Descifrar el mensaje cifrado
+    padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+    
+    # Eliminar el padding
+    unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+    plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+    
+    return plaintext.decode()
+
+
+
+
+
+
+
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding as asym_padding
+from cryptography.hazmat.primitives import hashes
+
+def generate_rsa_keys():
+    # Generar un par de claves RSA
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
+    public_key = private_key.public_key()
+    
+    return private_key, public_key
+
+def encrypt_rsa(public_key, plaintext):
+    # Cifrar el texto plano usando la clave pública
+    ciphertext = public_key.encrypt(
+        plaintext.encode(),
+        asym_padding.OAEP(mgf=asym_padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+    )
+    return ciphertext
+
+def decrypt_rsa(private_key, ciphertext):
+    # Descifrar el texto cifrado usando la clave privada
+    plaintext = private_key.decrypt(
+        ciphertext,
+        asym_padding.OAEP(mgf=asym_padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
+    )
+    return plaintext.decode()
+
+def serialize_key(key, private=True):
+    # Serializar la clave privada o pública
+    if private:
+        return key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+    else:
+        return key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+
+
+
+
+
+if __name__ == "__main__":
+    # Ejemplo de cifrado y descifrado AES
+    aes_key = generate_aes_key()
+    plaintext = "Mensaje confidencial"
+    encrypted_data = encrypt_aes(aes_key, plaintext)
+    decrypted_data = decrypt_aes(aes_key, encrypted_data)
+    print(f"Texto plano: {plaintext}")
+    print(f"Texto cifrado (AES): {encrypted_data}")
+    print(f"Texto descifrado (AES): {decrypted_data}")
+
+    # Ejemplo de cifrado y descifrado RSA
+    private_key, public_key = generate_rsa_keys()
+    plaintext_rsa = "Mensaje confidencial RSA"
+    encrypted_rsa = encrypt_rsa(public_key, plaintext_rsa)
+    decrypted_rsa = decrypt_rsa(private_key, encrypted_rsa)
+    print(f"Texto plano (RSA): {plaintext_rsa}")
+    print(f"Texto cifrado (RSA): {encrypted_rsa}")
+    print(f"Texto descifrado (RSA): {decrypted_rsa}")
+
+    # Serializar y deserializar claves RSA
+    private_pem = serialize_key(private_key, private=True)
+    public_pem = serialize_key(public_key, private=False)
+    print(f"Clave privada (PEM): {private_pem.decode()}")
+    print(f"Clave pública (PEM): {public_pem.decode()}")
